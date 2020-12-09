@@ -122,6 +122,9 @@ scroller <- function(url, n, n.times, type = NULL, ..., verbose = TRUE, safedir 
     )
     pb$tick(0)
   }
+  # Sleep timers to prevent sandbox (30 rpm) or premium (60 rpm) rate limits
+  pablo.sleep.time <- ifelse(PABLO_IS_SANDBOX_FLAG,2.1,1.1)
+  # Resume operation
   for (i in seq_along(x)) {
     if (verbose) pb$tick()
 
@@ -155,10 +158,13 @@ scroller <- function(url, n, n.times, type = NULL, ..., verbose = TRUE, safedir 
       x[[i]] <- list(data.frame())
       break
     }
-    ## if reach counter, break
+    ## if reach counter, break. Maybe overkill in premium mode? ceiling already caps
     counter <- counter +
       as.numeric(unique_id_count(x[[i]], type = type))
-    if (counter > n) break
+    if (counter > n) {
+      print("breaking due to counter overflow")
+      break
+    }
     ## check other possible fails
     if (break_check(x[[i]], url)) break
     ## if cursor in URL then update otherwise use max id
@@ -169,6 +175,14 @@ scroller <- function(url, n, n.times, type = NULL, ..., verbose = TRUE, safedir 
     } else {
       url$query$max_id <- get_max_id(x[[i]])
     }
+    ## If premium call and no 'next' element in response, no need to keep querying
+    if (type %in% c("premium", "fullarchive", "30day") && !has_name_(x[[i]], "next")){
+      print(paste0("Reached the last page of the query after ",i," pages"))
+      break
+    }
+    ## Sleep between requests to prevent rate limit
+    print(paste0("sleeping for ",pablo.sleep.time," seconds"))
+    Sys.sleep(pablo.sleep.time)
   }
   ## drop NULLs
   if (is.null(names(x))) {
@@ -181,9 +195,9 @@ scroller <- function(url, n, n.times, type = NULL, ..., verbose = TRUE, safedir 
 unique_id_count <- function(x, type = NULL) {
   if (!is.null(type)) {
     if (type == "search") return(100)
-    if (type == "full") return(100)
-    if (type == "premium") return(100)
-    if (type == "30day") return(100)
+    if (type == "full") return(ifelse(PABLO_IS_SANDBOX_FLAG,100,500))
+    if (type == "premium") return(ifelse(PABLO_IS_SANDBOX_FLAG,100,500))
+    if (type == "30day") return(ifelse(PABLO_IS_SANDBOX_FLAG,100,500))
     if (type == "timeline") return(200)
     if (type == "followers") return(5000)
   }

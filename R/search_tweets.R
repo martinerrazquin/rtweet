@@ -398,10 +398,13 @@ search_tweets_ <- function(q = "",
   if (grepl("fullarchive|30day", query)) {
     params[["premium"]] <- NULL
     params$result_type <- NULL
+    pablo.max.res <- ifelse(PABLO_IS_SANDBOX_FLAG,100,500)
+    print(paste0(ifelse(PABLO_IS_SANDBOX_FLAG,"SANDBOX","PREMIUM"),
+                 " mode: returning batches of max ", pablo.max.res, " tweets per request"))
     if (grepl("full", query)) {
-      params$maxResults <- 500 # The Twitter premium API allows up to 500 tweets per request 
+      params$maxResults <- pablo.max.res
     } else {
-      params$maxResults <- 100
+      params$maxResults <- 100  # should 30day be modified too? not using it so...
     }
     names(params)[1] <- "query"
     params$tweet_mode <- NULL
@@ -416,7 +419,10 @@ search_tweets_ <- function(q = "",
     #   params$toDate <- regmatches(params$q, m)
     #   params$q <- sub("until:\\S+\\s?", "", params$q)
     # }
-    params$count <- NULL
+    params$count <- NULL # nullify count param
+    ## Also override n.times
+    n.times <- ceiling(n / pablo.max.res)
+    # resume original operation
     type <- "premium"
     ## make url
     url <- make_url(
